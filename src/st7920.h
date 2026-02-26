@@ -20,6 +20,7 @@ void st7920_send(uint8_t is_data, uint8_t value) {
 }
 
 void st7920_clear_GDRAM(){
+    spi_device_acquire_bus(display_spi_handle, portMAX_DELAY);
     for (uint8_t y = 0; y < 32; y++) {
         // Clear Upper Half
         st7920_send(0, 0x80 | y);
@@ -35,6 +36,7 @@ void st7920_clear_GDRAM(){
             st7920_send(1, 0x00);
         }
     }
+    spi_device_release_bus(display_spi_handle);
 }
 
 void st7920_init(int data_pin, int clk_pin) {
@@ -58,33 +60,33 @@ void st7920_init(int data_pin, int clk_pin) {
 
     //sending commands to the screen
     vTaskDelay(pdMS_TO_TICKS(50));
+    spi_device_acquire_bus(display_spi_handle, portMAX_DELAY);
     st7920_send(0, 0x30); // Basic instruction set
     st7920_send(0, 0x01); // Clear screen
+    spi_device_release_bus(display_spi_handle);
     vTaskDelay(pdMS_TO_TICKS(10));
+    spi_device_acquire_bus(display_spi_handle, portMAX_DELAY);
     st7920_send(0, 0x36); // Extended instruction set + Graphic ON
+    spi_device_release_bus(display_spi_handle);
     st7920_clear_GDRAM();
 }
 
 
 void st7920_write_Buffer(uint8_t* display_screenBuffer) {
-    for (uint8_t y = 0; y < 32; y++) {
-        // --- Draw Upper Half ---
-        st7920_send(0, 0x80 | y);      // Set Y address (Vertical)
-        st7920_send(0, 0x80 | 0);      // Set X address (Horizontal - start at 0)
-        
-        for (uint8_t x = 0; x < 16; x++) {
-            // 16 pixels per horizontal word
-            st7920_send(1, display_screenBuffer[y * 16 + x]);
-        }
+    spi_device_acquire_bus(display_spi_handle, portMAX_DELAY);
 
-        // --- Draw Lower Half ---
-        st7920_send(0, 0x80 | y);      // Set Y address (0-31 again)
-        st7920_send(0, 0x80 | 8);      // Set X address (Starts at 8 for bottom half)
-        
-        for (uint8_t x = 0; x < 16; x++) {
-            // Offset the index by the first 32 lines (512 bytes)
+    for (uint8_t y = 0; y < 32; y++) {
+        st7920_send(0, 0x80 | y);
+        st7920_send(0, 0x80 | 0);
+        for (uint8_t x = 0; x < 16; x++)
+            st7920_send(1, display_screenBuffer[y * 16 + x]);
+
+        st7920_send(0, 0x80 | y);
+        st7920_send(0, 0x80 | 8);
+        for (uint8_t x = 0; x < 16; x++)
             st7920_send(1, display_screenBuffer[512 + (y * 16 + x)]);
-        }
     }
+
+    spi_device_release_bus(display_spi_handle);
 }
 
