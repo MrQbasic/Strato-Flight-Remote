@@ -51,9 +51,9 @@ void st7920_init(int data_pin, int clk_pin) {
     spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
 
     spi_device_interface_config_t devcfg = {
-        .clock_speed_hz = 1000000, // ST7920 is slow, start at 1MHz
-        .mode = 3,                 // ST7920 uses SPI Mode 3
-        .spics_io_num = -1,        // We handle CS manually
+        .clock_speed_hz = 1000000, 
+        .mode = 3,                 
+        .spics_io_num = -1,        
         .queue_size = 7,
     };
     spi_bus_add_device(SPI2_HOST, &devcfg, &display_spi_handle);

@@ -1,6 +1,7 @@
 #include "menu.h"
 #include "display.h"
 #include "rotaryEnc.h"
+#include "LLCC68.h"
 
 #include <stdio.h>
 
@@ -11,12 +12,8 @@ int buttonCnt = 0;
 
 void update_menu(){
     display_draw_clear();
-
-    display_draw_rect(0,0, 128, 9, true, true);
-    display_draw_string("Hello World!",0,1, false);
     
-    sniprintf(buffer, sizeof(buffer), "CNT: %d   POS %d", buttonCnt, encoderPos);
-    display_draw_string(buffer, 0, 40, true); 
+    display_draw_string(Data, 0, 0, true); 
     
     display_update();
 }
@@ -29,7 +26,9 @@ void render_menu() {
 
     while(1){
         
-        bool update = false;
+        update_menu();
+
+        /*bool update = false;
         while(xQueueReceive(input_evt_queue, &event, 0) == pdTRUE) {
             if(event.type == INPUT_EVENT_ROTATE) {
                 encoderPos = event.value;
@@ -39,10 +38,12 @@ void render_menu() {
             }
             update=true;
         }
+
         if(update){
             update_menu();
         }
+        */
 
-        vTaskDelay(pdMS_TO_TICKS(30));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
