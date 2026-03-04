@@ -1,3 +1,5 @@
+#pragma once
+
 #define PIN_LORA_NSS 21
 #define PIN_LORA_RST 19
 #define PIN_LORA_SCK  22
@@ -27,8 +29,16 @@
 
 
 #include <stdbool.h>
+#include <stdint.h>
 
-extern char Data[];
+typedef enum {
+    LLCC68_LINK_STATUS_DISCONNECTED = 0,
+    LLCC68_LINK_STATUS_CONNECTED = 1,
+    LLCC68_LINK_STATUS_ERROR = 2,
+} LLCC68_Link_Status_t;
+
+extern uint8_t Data[];
+extern LLCC68_Link_Status_t Link_status;
 
 bool LLCC68_init(void);
 

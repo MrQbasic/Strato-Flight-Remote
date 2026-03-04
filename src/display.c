@@ -2,14 +2,6 @@
 #include "display.h"
 #include <string.h>
 
-#define SCREEN_WIDTH 128
-#define SCREEN_HIGHT  64
-
-#define CHAR_WIDTH 5
-#define CHAR_HIGHT 6
-
-#define MARGIN_X 1
-#define MARGIN_Y 2
 
 spi_device_handle_t spi;
 
@@ -84,9 +76,18 @@ void display_draw_string(char* string, int x, int y, bool color){
         index++;
         char c = string[index];
         if(c == '\0') break;
+        
+        if(c == '\n'){
+            x = 0;
+            y += CHAR_HIGHT + MARGIN_Y;
+            if(y > SCREEN_HIGHT-CHAR_HIGHT){
+                y=0;
+            }
+            continue;
+        }
+
         //print the char
-        display_draw_char(c, x, y, color);
-        x += CHAR_WIDTH + MARGIN_X;
+        
         if(x > SCREEN_WIDTH-CHAR_WIDTH){
             x = 0;
             y += CHAR_HIGHT + MARGIN_Y;
@@ -94,6 +95,9 @@ void display_draw_string(char* string, int x, int y, bool color){
                 y=0;
             }
         }
+
+        display_draw_char(c, x, y, color);
+        x += CHAR_WIDTH + MARGIN_X;
     }
 }
 

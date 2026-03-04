@@ -3,6 +3,14 @@
 #define DISPLAY_PIN_CLK 33
 #define DISPLAY_PIN_DIO 32
 
+#define SCREEN_WIDTH 128
+#define SCREEN_HIGHT  64
+
+#define CHAR_WIDTH 5
+#define CHAR_HIGHT 6
+
+#define MARGIN_X 1
+#define MARGIN_Y 2
 
 void display_init(void);
 void display_update(void);

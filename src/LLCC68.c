@@ -15,7 +15,8 @@ static spi_device_handle_t lora_spi;
 
 static SemaphoreHandle_t lora_irq_sem = NULL;
 
-char Data[300];
+uint8_t Data[256];
+LLCC68_Link_Status_t Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
 
 static void llcc68_wait_busy(void){
     while(gpio_get_level(PIN_LORA_BUSY) == 1){
@@ -154,16 +155,21 @@ void llcc68_listen(){
                 llcc68_cmd(read_buffer, sizeof(read_buffer));
 
                 memcpy(Data, &read_buffer[3], len);
-                Data[len] = '\0';
+
+                Link_status = LLCC68_LINK_STATUS_CONNECTED;
 
             }else if(irq_flags & 0x20){
                 printf("LoRa Header Error!\n");
+                Link_status = LLCC68_LINK_STATUS_ERROR;
             }else if (irq_flags & 0x40) {
                 printf("LoRa CRC Error!\n");
+                Link_status = LLCC68_LINK_STATUS_ERROR;
             } else if (irq_flags & 0x200) {
                 printf("LoRa Timeout!\n");
+                Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
             } else {
                 printf("unexprected interrupt! 0x%02x\n", irq_flags);
+                Link_status = LLCC68_LINK_STATUS_ERROR;
             }
             
         }
