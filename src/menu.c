@@ -6,6 +6,7 @@
 #include "menu/SensorData.h"
 #include "menu/GPSData.h"
 #include "menu/Selector.h"
+#include "menu/LoRa.h"
 
 int global_enc_pos = 0;
 int last_local_enc_pos = 0;
@@ -59,7 +60,7 @@ void render_menu() {
                 case 1:
                     render_GPS_menu(); break;
                 case 2:
-                    //render_LoRa_menu(); break;
+                    render_LoRa_menu(); break;
                 case 3:
                     //render_Options_menu(); break;
                 default:

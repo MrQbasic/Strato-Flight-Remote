@@ -13,7 +13,7 @@
 
 #define LORA_RF_XTAL                                32000000
 #define LORA_RF_FREQUENCY                           868000000 // Hz
-#define LORA_SF 7f
+#define LORA_SF 7
 
 //OPCODES
 #define LLCC68_SET_STANDBY_OPCODE               0x80
@@ -50,6 +50,9 @@ typedef struct LoraData {
 
 extern LoraData* Data;
 extern LLCC68_Link_Status_t Link_status;
+extern int timeoutCounter;
+extern int errorCounter;
+extern int packetCounter;
 
 bool LLCC68_init(void);
 

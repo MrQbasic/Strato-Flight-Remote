@@ -1,0 +1,11 @@
+#include <display.h>
+#include "LLCC68.h"
+#include <stdio.h>
+
+void render_LoRa_menu() {
+    display_draw_string("LoRa Status:", 0, 0, true);
+
+    char buf[256];
+    snprintf(buf, sizeof(buf), "Packets: %d\nErrors: %d\nTimeouts: %d", packetCounter, errorCounter, timeoutCounter);
+    display_draw_string(buf, 0, 20, true);
+}

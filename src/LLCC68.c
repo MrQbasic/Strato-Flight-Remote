@@ -15,6 +15,10 @@ static spi_device_handle_t lora_spi;
 
 static SemaphoreHandle_t lora_irq_sem = NULL;
 
+int timeoutCounter = 0;
+int errorCounter = 0;
+int packetCounter = 0;
+
 LoraData* Data = NULL;
 LLCC68_Link_Status_t Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
 
@@ -124,7 +128,7 @@ void llcc68_listen(){
 
 
         if (xSemaphoreTake(lora_irq_sem, portMAX_DELAY) == pdPASS) {
-
+            //read IRQ status 
             uint8_t irq_status[] = {0x12, 0x00, 0x00, 0x00};
             llcc68_cmd(irq_status, sizeof(irq_status));
             uint16_t irq_flags = (irq_status[2] << 8) | irq_status[3];
@@ -158,18 +162,24 @@ void llcc68_listen(){
 
                 Link_status = LLCC68_LINK_STATUS_CONNECTED;
 
+                packetCounter++;
+
             }else if(irq_flags & 0x20){
                 printf("LoRa Header Error!\n");
                 Link_status = LLCC68_LINK_STATUS_ERROR;
+                errorCounter++;
             }else if (irq_flags & 0x40) {
                 printf("LoRa CRC Error!\n");
                 Link_status = LLCC68_LINK_STATUS_ERROR;
+                errorCounter++;
             } else if (irq_flags & 0x200) {
                 printf("LoRa Timeout!\n");
                 Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
+                timeoutCounter++;
             } else {
                 printf("unexprected interrupt! 0x%02x\n", irq_flags);
                 Link_status = LLCC68_LINK_STATUS_ERROR;
+                errorCounter++; 
             }
             
         }
