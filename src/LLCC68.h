@@ -37,7 +37,18 @@ typedef enum {
     LLCC68_LINK_STATUS_ERROR = 2,
 } LLCC68_Link_Status_t;
 
-extern uint8_t Data[];
+typedef struct LoraData {
+    float temp_1;
+    float temp_2;
+    float pressure;
+    float humidity;
+    float uv;
+    double gps_lat;
+    double gps_lon;
+    double gps_alt;
+} __attribute__((packed)) LoraData;
+
+extern LoraData* Data;
 extern LLCC68_Link_Status_t Link_status;
 
 bool LLCC68_init(void);

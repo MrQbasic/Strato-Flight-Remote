@@ -15,7 +15,7 @@ static spi_device_handle_t lora_spi;
 
 static SemaphoreHandle_t lora_irq_sem = NULL;
 
-uint8_t Data[256];
+LoraData* Data = NULL;
 LLCC68_Link_Status_t Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
 
 static void llcc68_wait_busy(void){
@@ -186,6 +186,8 @@ static void llcc68_reset(void){
 
 
 bool LLCC68_init(void){
+
+    Data = (struct LoraData*) malloc(256 * sizeof(uint8_t)); //alloc max buffer length to avoid segfaults if struct is wrong
 
     gpio_set_direction(PIN_LORA_NSS, GPIO_MODE_OUTPUT);
     gpio_set_level(PIN_LORA_NSS, 1);

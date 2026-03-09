@@ -79,8 +79,8 @@ void display_draw_string(char* string, int x, int y, bool color){
         
         if(c == '\n'){
             x = 0;
-            y += CHAR_HIGHT + MARGIN_Y;
-            if(y > SCREEN_HIGHT-CHAR_HIGHT){
+            y += CHAR_HEIGHT + MARGIN_Y;
+            if(y > SCREEN_HEIGHT-CHAR_HEIGHT){
                 y=0;
             }
             continue;
@@ -90,15 +90,15 @@ void display_draw_string(char* string, int x, int y, bool color){
         
         if(x > SCREEN_WIDTH-CHAR_WIDTH){
             x = 0;
-            y += CHAR_HIGHT + MARGIN_Y;
-            if(y > SCREEN_HIGHT-CHAR_HIGHT){
+            y += CHAR_HEIGHT + MARGIN_Y;
+            if(y > SCREEN_HEIGHT-CHAR_HEIGHT){
                 y=0;
             }
         }
 
         display_draw_char(c, x, y, color);
         x += CHAR_WIDTH + MARGIN_X;
-    }
+    }   
 }
 
 void display_update(void) {
