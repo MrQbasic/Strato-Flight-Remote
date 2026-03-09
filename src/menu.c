@@ -1,42 +1,71 @@
 #include "menu.h"
 #include "display.h"
-#include "rotaryEnc.h"
 #include "LLCC68.h"
-
+#include "rotaryEnc.h"
 
 #include "menu/SensorData.h"
 #include "menu/GPSData.h"
+#include "menu/Selector.h"
 
-int encoderPos = 0;
-int buttonCnt = 0;
-
-
-
+int global_enc_pos = 0;
+int last_local_enc_pos = 0;
 InputEvent event;
 
 void render_menu() {
 
-    while(1){
+    bool render_selector = false;
+    int menu_selected = 0;
 
-        /*bool update = false;
+    while(1){
+        //parse input
+        bool buttonPressed = false;
         while(xQueueReceive(input_evt_queue, &event, 0) == pdTRUE) {
             if(event.type == INPUT_EVENT_ROTATE) {
-                encoderPos = event.value;
-                
+                int delta = event.value - last_local_enc_pos;
+                //check for wrap around (assuming we cant turn farster then 50 steps between updates)
+                //wrap from 99 to 0 => delta -99
+                if(delta < -50){
+                    delta += 100;
+                }
+                //wrap from -99 to 0 => delta +99 
+                else if(delta > 50){
+                    delta -= 100;
+                }
+                global_enc_pos += delta;
+                last_local_enc_pos = event.value;
             } else if(event.type == INPUT_EVENT_BUTTON) {
-                buttonCnt++;
+                buttonPressed = true;
             }
-            update=true;
         }
 
-        if(update){
-            update_menu();
+        //handle menu state switching
+        if(render_selector && buttonPressed){
+            render_selector = false;
+        }else if(!render_selector && buttonPressed){
+            render_selector = true;
+            global_enc_pos = menu_selected; //reset to start at 0 in the list
         }
-        */
+
+        //render window
+
         display_draw_clear();
 
-        render_GPS_menu();
-        //render_SensorData_menu();
+        if(render_selector){
+            menu_selected = render_menu_selector(global_enc_pos);
+        }else{
+            switch (menu_selected){
+                case 0:
+                    render_SensorData_menu(); break;
+                case 1:
+                    render_GPS_menu(); break;
+                case 2:
+                    //render_LoRa_menu(); break;
+                case 3:
+                    //render_Options_menu(); break;
+                default:
+                    break;
+            }
+        }
 
         // Render link status in top right
         const char* status_String = "UNKNOWN";
@@ -57,6 +86,6 @@ void render_menu() {
         display_update();
 
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

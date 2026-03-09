@@ -188,6 +188,7 @@ static void llcc68_reset(void){
 bool LLCC68_init(void){
 
     Data = (struct LoraData*) malloc(256 * sizeof(uint8_t)); //alloc max buffer length to avoid segfaults if struct is wrong
+    memset(Data, 0, 256 * sizeof(uint8_t));
 
     gpio_set_direction(PIN_LORA_NSS, GPIO_MODE_OUTPUT);
     gpio_set_level(PIN_LORA_NSS, 1);
