@@ -18,6 +18,7 @@ static SemaphoreHandle_t lora_irq_sem = NULL;
 int timeoutCounter = 0;
 int errorCounter = 0;
 int packetCounter = 0;
+int packetRSSI = 0;
 
 LoraData* Data = NULL;
 LLCC68_Link_Status_t Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
@@ -50,6 +51,53 @@ static void IRAM_ATTR lora_dio1_isr(void *arg) {
     portYIELD_FROM_ISR(higher_priority_woken);
 }
 
+
+uint8_t imageCalibrationTable [5][2] = {
+    {0x6B, 0x6F}, // 430-440 MHz
+    {0x75, 0x81}, // 470-510 MHz
+    {0xC1, 0xC5}, // 779-787 MHz
+    {0xD7, 0xDB}, // 863-870 MHz
+    {0xE1, 0xE9}  // 902-928 MHz
+};
+
+void llcc68_calibrate_image(LLCC68_FREQUENCY_BAND_t frequency_band){
+    if(frequency_band > 5) return; //invalid frequency band
+    uint8_t cmd[] = {0x98, imageCalibrationTable[frequency_band][0], imageCalibrationTable[frequency_band][1]};
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+void llcc68_calibrate(uint8_t callibration_Setting){
+    uint8_t cmd[] = {0x98, callibration_Setting & 0x7F};
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+uint8_t llcc68_getStatus(){
+    uint8_t cmd[] = {LLCC68_OPCODE_GET_STATUS, 0x00};
+    llcc68_cmd(cmd, sizeof(cmd));    
+    return ((cmd[1] & 0b1110) >> 1) | (cmd[1] & 0b01110000); //rearrange bits to remove reserved bits
+}
+
+void llcc68_setFrequency(uint32_t frequency){
+    uint64_t rfFreq = ((uint64_t)frequency << 25) / LORA_RF_XTAL;
+    uint8_t cmd[5];
+    cmd[0] = 0x86;
+    cmd[1] = (uint8_t)((rfFreq >> 24) & 0xFF);
+    cmd[2] = (uint8_t)((rfFreq >> 16) & 0xFF);
+    cmd[3] = (uint8_t)((rfFreq >> 8)  & 0xFF);
+    cmd[4] = (uint8_t)((rfFreq >> 0)  & 0xFF);
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+void llcc68_setModulationParams(LLCC68_MODULATION_SF_t sf, LLCC68_MODULATION_BW_t bw, LLCC68_MODULATION_CR_t cr, bool low_data_rate_optimization){
+    uint8_t cmd[] = {0x8B, sf, bw, cr | (low_data_rate_optimization ? 0x01 : 0x00)};
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+void llcc68_setPacketType(LLCC68_PACKET_TYPE_t type){
+    uint8_t cmd[] = {0x8A, type};
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
 void llcc68_listen(){
     lora_irq_sem = xSemaphoreCreateBinary();
     
@@ -70,26 +118,15 @@ void llcc68_listen(){
     llcc68_cmd(standby, sizeof(standby));
 
     // 2. SetPacketType - LoRa
-    uint8_t pkt_type[] = {0x8A, 0x01};
-    llcc68_cmd(pkt_type, sizeof(pkt_type));
+    llcc68_setPacketType(LLCC68_PACKET_TYPE_LORA);
 
-    // 3. SetRfFrequency - must match TX (868MHz)
-    uint64_t rfFreq = ((uint64_t)LORA_RF_FREQUENCY << 25) / LORA_RF_XTAL;
-    uint8_t freq[5];
-    freq[0] = 0x86;
-    freq[1] = (uint8_t)((rfFreq >> 24) & 0xFF);
-    freq[2] = (uint8_t)((rfFreq >> 16) & 0xFF);
-    freq[3] = (uint8_t)((rfFreq >> 8)  & 0xFF);
-    freq[4] = (uint8_t)((rfFreq >> 0)  & 0xFF);
-    llcc68_cmd(freq, sizeof(freq));
+    llcc68_setFrequency(LORA_RF_FREQUENCY);
 
     // 4. SetBufferBaseAddress - TX=0x00, RX=0x80
     uint8_t buf_base[] = {0x8F, 0x00, 0x80};
     llcc68_cmd(buf_base, sizeof(buf_base));
 
-    // 5. SetModulationParams - must match TX exactly (SF7, BW125, CR4/5)
-    uint8_t mod[] = {0x8B, 0x7, 0x05, 0x01, 0x00};
-    llcc68_cmd(mod, sizeof(mod));
+    llcc68_setModulationParams(LLCC68_MODULATION_SF_7, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8, true);
 
     // 6. SetPacketParams - must match TX (preamble=8, explicit header, CRC on)
     // payload length doesn't matter in explicit header mode, chip figures it out
@@ -116,9 +153,11 @@ void llcc68_listen(){
 
     //check if threr was a packet recived
     while(1){
+        int startTime = xTaskGetTickCount();
+
         // SetRx - disble timeout
-        int timeout_ms = 1600000;
-        uint32_t timeout_units = (timeout_ms == 0) ? 0xFFFFFF : (timeout_ms * 1000 / 15625);
+        int timeout_ms = 4000;
+        uint32_t timeout_units = (timeout_ms == 0) ? 0xFFFFFF : (timeout_ms * 1000 * 1000 / 15625);
         uint8_t set_rx[] = {0x82,
             (timeout_units >> 16) & 0xFF,
             (timeout_units >> 8)  & 0xFF,
@@ -128,6 +167,10 @@ void llcc68_listen(){
 
 
         if (xSemaphoreTake(lora_irq_sem, portMAX_DELAY) == pdPASS) {
+            int endTime = xTaskGetTickCount();
+
+            printf("Packet received in %lu ms\n",(int) (endTime - startTime) * portTICK_PERIOD_MS);
+
             //read IRQ status 
             uint8_t irq_status[] = {0x12, 0x00, 0x00, 0x00};
             llcc68_cmd(irq_status, sizeof(irq_status));
@@ -137,11 +180,12 @@ void llcc68_listen(){
             uint8_t clear_irq[] = {0x02, 0xFF, 0xFF};
             llcc68_cmd(clear_irq, sizeof(clear_irq));
 
-            if (irq_flags & 0x02) {
-                uint8_t get_rssi[] = {0x15, 0x00};
-                llcc68_cmd(get_rssi, sizeof(get_rssi));
-                printf("RSSI: %d dBm\n", -(get_rssi[1] / 2));
+            uint8_t get_rssi[] = {0x15, 0x00};
+            llcc68_cmd(get_rssi, sizeof(get_rssi));
+            packetRSSI = -(get_rssi[1] / 2);
+            printf("RSSI: %d dBm\n", packetRSSI);
 
+            if (irq_flags & 0x02) {
                 // Response format: [Status, PayloadLength, RxStartBufferPointer]
                 uint8_t get_buf_status[] = {0x13, 0x00, 0x00, 0x00};
                 llcc68_cmd(get_buf_status, sizeof(get_buf_status));
@@ -240,21 +284,17 @@ bool LLCC68_init(void){
     uint8_t standby[] = {LLCC68_SET_STANDBY_OPCODE, LLCC68_SET_STANDBY_ARG_MODE_STBY_RC};
     llcc68_cmd(standby, sizeof(standby));
 
-    //check if the module is in standby
-    uint8_t status[] = {LLCC68_OPCODE_GET_STATUS, 0x00};
-    llcc68_cmd(status, sizeof(status));    
-    uint8_t chip_mode     = (status[1] >> 4) & 0x07;
-    if(chip_mode != 0x02){
-        printf("ERROR THIS SHOULD NOT HAPPEN! CHECK YOUR WIRES!\n");    
+    //check if the module is in standby_RC
+    if((llcc68_getStatus() >> 4) != LLCC68_STATUS_CHIPMODE_STBY_RC){
+        printf("ERROR THIS SHOULD NOT HAPPEN! CHECK YOUR WIRES!\n");
         return false;
     }
 
     //Calibrate
-    uint8_t callibrate[] = {0x89, 0x7F};
-    llcc68_cmd(callibrate, sizeof(callibrate));
+    llcc68_calibrate(LLCC68_CALLIBRATE_ALL);
+
     //Calibrate Image (Europe)
-    uint8_t callibrate_Image[] = {0x98, 0xD7, 0xDB};
-    llcc68_cmd(callibrate_Image, sizeof(callibrate_Image));
+    llcc68_calibrate_image(LLCC68_FREQUENCY_BAND_863_870);
 
     return true;
 }

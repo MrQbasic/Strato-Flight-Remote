@@ -16,8 +16,8 @@ static void IRAM_ATTR gpio_isr_button(void* arg) {
     static uint32_t last_tick = 0;
     uint32_t now = xTaskGetTickCountFromISR();
 
-    // Only send the event if at least 50ms (5 ticks at 100Hz) has passed
-    if ((now - last_tick) > pdMS_TO_TICKS(50)) {
+    // Only send the event if at least 500ms (50 ticks at 100Hz) has passed
+    if ((now - last_tick) > pdMS_TO_TICKS(500)) {
         InputEvent ev = { .type = INPUT_EVENT_BUTTON, .value = 1 };
         xQueueSendFromISR(input_evt_queue, &ev, NULL);
         last_tick = now;
