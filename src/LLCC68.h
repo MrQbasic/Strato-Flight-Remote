@@ -15,13 +15,6 @@
 #define LORA_RF_XTAL                                32000000
 #define LORA_RF_FREQUENCY                           868000000 // Hz
 
-//OPCODES
-#define LLCC68_SET_STANDBY_OPCODE               0x80
-#define LLCC68_SET_STANDBY_ARG_MODE_STBY_RC     0x00
-#define LLCC68_SET_STANDBY_ARG_MODE_STBY_XOSC   0x01
-//-
-#define LLCC68_OPCODE_GET_STATUS         0xC0
-
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -88,6 +81,14 @@ void llcc68_calibrate(uint8_t callibration_Setting);
 uint8_t llcc68_getStatus();
 
 
+typedef enum {
+    LLCC68_STANDBY_RC = 0x00, 
+    LLCC68_STANDBY_XOSC = 0x01,
+} LLCC68_STANDBY_MODE_t;
+
+void llcc68_setStandby(LLCC68_STANDBY_MODE_t mode);
+
+
 void llcc68_setFrequency(uint32_t frequency);
 
 
@@ -126,6 +127,12 @@ typedef enum {
 } LLCC68_PACKET_TYPE_t;
 
 void llcc68_setPacketType(LLCC68_PACKET_TYPE_t type);
+
+
+void llcc68_setBufferBaseAddress(uint8_t tx_base, uint8_t rx_base);
+
+
+void llcc68_setPacketParams_Lora(uint16_t peramble_length, bool implicit_header, uint8_t payload_length, bool crc_enable, bool invert_iq);
 
 bool LLCC68_init(void);
 

@@ -72,7 +72,7 @@ void llcc68_calibrate(uint8_t callibration_Setting){
 }
 
 uint8_t llcc68_getStatus(){
-    uint8_t cmd[] = {LLCC68_OPCODE_GET_STATUS, 0x00};
+    uint8_t cmd[] = {0xC0, 0x00};
     llcc68_cmd(cmd, sizeof(cmd));    
     return ((cmd[1] & 0b1110) >> 1) | (cmd[1] & 0b01110000); //rearrange bits to remove reserved bits
 }
@@ -98,6 +98,30 @@ void llcc68_setPacketType(LLCC68_PACKET_TYPE_t type){
     llcc68_cmd(cmd, sizeof(cmd));
 }
 
+void llcc68_setStandby(LLCC68_STANDBY_MODE_t mode){
+    uint8_t cmd[] = {0x80, mode};
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+void llcc68_setBufferBaseAddress(uint8_t tx_base, uint8_t rx_base){
+    uint8_t cmd[] = {0x8F, tx_base, rx_base};
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+void llcc68_setPacketParams_Lora(uint16_t peramble_length, bool implicit_header, uint8_t payload_length, bool crc_enable, bool invert_iq){
+    uint8_t cmd[] = {
+        0x8C,
+        (peramble_length >> 8) & 0xFF,
+        (peramble_length >> 0) & 0xFF,
+        (implicit_header ? 0x01 : 0x00),
+        payload_length,
+        (crc_enable ? 0x01 : 0x00),
+        (invert_iq ? 0x01 : 0x00)
+    };
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+
 void llcc68_listen(){
     lora_irq_sem = xSemaphoreCreateBinary();
     
@@ -113,25 +137,18 @@ void llcc68_listen(){
     gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
     gpio_isr_handler_add(PIN_LORA_DIO1, lora_dio1_isr, NULL);
 
-    // 1. SetStandby
-    uint8_t standby[] = {0x80, 0x00};
-    llcc68_cmd(standby, sizeof(standby));
 
-    // 2. SetPacketType - LoRa
+    llcc68_setStandby(LLCC68_STANDBY_RC); // Use crystal oscillator for better stability during reception
+
     llcc68_setPacketType(LLCC68_PACKET_TYPE_LORA);
 
     llcc68_setFrequency(LORA_RF_FREQUENCY);
 
-    // 4. SetBufferBaseAddress - TX=0x00, RX=0x80
-    uint8_t buf_base[] = {0x8F, 0x00, 0x80};
-    llcc68_cmd(buf_base, sizeof(buf_base));
+    llcc68_setBufferBaseAddress(0x00, 0x80);
 
     llcc68_setModulationParams(LLCC68_MODULATION_SF_7, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8, true);
 
-    // 6. SetPacketParams - must match TX (preamble=8, explicit header, CRC on)
-    // payload length doesn't matter in explicit header mode, chip figures it out
-    uint8_t pkt_params[] = {0x8C, 0x00, 0x08, 0x00, 0xFF, 0x01, 0x00};
-    llcc68_cmd(pkt_params, sizeof(pkt_params));
+    llcc68_setPacketParams_Lora(8, false, 255, true, false);  //255 is the max payload length as its only reciving here
 
     // 7. SetDioIrqParams - RxDone + Timeout + CRC error on DIO1
     uint8_t irq[] = {0x08,
@@ -281,8 +298,7 @@ bool LLCC68_init(void){
     llcc68_reset();
 
     //set it into standby
-    uint8_t standby[] = {LLCC68_SET_STANDBY_OPCODE, LLCC68_SET_STANDBY_ARG_MODE_STBY_RC};
-    llcc68_cmd(standby, sizeof(standby));
+    llcc68_setStandby(LLCC68_STANDBY_RC);
 
     //check if the module is in standby_RC
     if((llcc68_getStatus() >> 4) != LLCC68_STATUS_CHIPMODE_STBY_RC){
