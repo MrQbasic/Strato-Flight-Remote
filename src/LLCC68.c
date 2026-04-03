@@ -18,7 +18,7 @@ static SemaphoreHandle_t lora_irq_sem = NULL;
 int timeoutCounter = 0;
 int errorCounter = 0;
 int packetCounter = 0;
-int packetRSSI = 0;
+float packetRSSI = 0;
 
 LoraData* Data = NULL;
 LLCC68_Link_Status_t Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
@@ -89,7 +89,7 @@ void llcc68_setFrequency(uint32_t frequency){
 }
 
 void llcc68_setModulationParams(LLCC68_MODULATION_SF_t sf, LLCC68_MODULATION_BW_t bw, LLCC68_MODULATION_CR_t cr, bool low_data_rate_optimization){
-    uint8_t cmd[] = {0x8B, sf, bw, cr | (low_data_rate_optimization ? 0x01 : 0x00)};
+    uint8_t cmd[] = {0x8B, sf, bw, cr, (low_data_rate_optimization ? 0x01 : 0x00)};
     llcc68_cmd(cmd, sizeof(cmd));
 }
 
@@ -122,6 +122,77 @@ void llcc68_setPacketParams_Lora(uint16_t peramble_length, bool implicit_header,
 }
 
 
+void llcc68_rx(int timeout_ms){
+    gpio_set_level(PIN_LORA_TXEN, 0);
+    gpio_set_level(PIN_LORA_RXEN, 1);
+
+    llcc68_setBufferBaseAddress(0x00, 0x00);
+
+    uint32_t timeout_units = (timeout_ms == 0) ? 0xFFFFFF : (timeout_ms * 1000 * 1000 / 15625);
+    uint8_t cmd[] = {0x82,
+        (timeout_units >> 16) & 0xFF,
+        (timeout_units >> 8)  & 0xFF,
+        (timeout_units)       & 0xFF
+    };
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
+void llcc68_tx(void* data, uint8_t length){
+    gpio_set_level(PIN_LORA_TXEN, 1);
+    gpio_set_level(PIN_LORA_RXEN, 0);
+
+    llcc68_buffer_write(0x00, (uint8_t*) data, length);
+
+    llcc68_setBufferBaseAddress(0x00, 0x00);
+
+    llcc68_setPacketParams_Lora(8, false, length, true, false);
+
+    uint8_t tx_cmd[] = {0x83, 0x00, 0x00, 0x00};
+    llcc68_cmd(tx_cmd, sizeof(tx_cmd));
+}
+
+
+void llcc68_buffer_read(uint8_t offset, uint8_t* buf, uint8_t length){
+    //alloc a buffer for the read
+    uint8_t readBuffer[length + 3];
+    memset(readBuffer, 0, sizeof(readBuffer));
+    //set the header
+    readBuffer[0] = 0x1E; 
+    readBuffer[1] = offset;
+    readBuffer[2] = 0x00;    //dummy byte
+    //read the bytes
+    llcc68_cmd(readBuffer, sizeof(readBuffer));
+    //copy the data to the buffer
+    memcpy(buf, &(readBuffer[3]), length);
+}
+
+
+void llcc68_buffer_write(uint8_t offset, uint8_t* buf, uint8_t length){
+    //alloc a buffer for the write
+    uint8_t writeBuffer[length + 3];
+    memset(writeBuffer, 0, sizeof(writeBuffer));
+    //set the header
+    writeBuffer[0] = 0x0E; 
+    writeBuffer[1] = offset;
+    //copy the data to the buffer
+    memcpy(&(writeBuffer[2]), buf, length);
+    //write the bytes
+    llcc68_cmd(writeBuffer, sizeof(writeBuffer));
+}
+
+
+float llcc68_getRSSI(){
+    uint8_t cmd[] = {0x15, 0x00, 0x00};
+    llcc68_cmd(cmd, sizeof(cmd));
+    return -(cmd[2] / 2.0f);
+}
+
+
+void llcc68_setPaConfig(uint8_t paDutyCycle, uint8_t paHpMax){
+    uint8_t cmd[] = {0x95, paDutyCycle, paHpMax, 0x00, 0x01};
+    llcc68_cmd(cmd, sizeof(cmd));
+}
+
 void llcc68_listen(){
     lora_irq_sem = xSemaphoreCreateBinary();
     
@@ -138,17 +209,7 @@ void llcc68_listen(){
     gpio_isr_handler_add(PIN_LORA_DIO1, lora_dio1_isr, NULL);
 
 
-    llcc68_setStandby(LLCC68_STANDBY_RC); // Use crystal oscillator for better stability during reception
-
-    llcc68_setPacketType(LLCC68_PACKET_TYPE_LORA);
-
-    llcc68_setFrequency(LORA_RF_FREQUENCY);
-
-    llcc68_setBufferBaseAddress(0x00, 0x80);
-
-    llcc68_setModulationParams(LLCC68_MODULATION_SF_7, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8, true);
-
-    llcc68_setPacketParams_Lora(8, false, 255, true, false);  //255 is the max payload length as its only reciving here
+    
 
     // 7. SetDioIrqParams - RxDone + Timeout + CRC error on DIO1
     uint8_t irq[] = {0x08,
@@ -162,31 +223,22 @@ void llcc68_listen(){
     // 8. Set LoRa sync word - must match TX
     uint8_t sync[] = {0x0D, 0x07, 0x40, 0x14, 0x24};
     llcc68_cmd(sync, sizeof(sync));
-
-    // 9. Enable RF switch for RX
-    gpio_set_level(PIN_LORA_TXEN, 0);
-    gpio_set_level(PIN_LORA_RXEN, 1);
-
+    
+    llcc68_setPacketParams_Lora(8, false, 255, true, false);  //255 is the max payload length as its only reciving here
 
     //check if threr was a packet recived
     while(1){
         int startTime = xTaskGetTickCount();
 
-        // SetRx - disble timeout
-        int timeout_ms = 4000;
-        uint32_t timeout_units = (timeout_ms == 0) ? 0xFFFFFF : (timeout_ms * 1000 * 1000 / 15625);
-        uint8_t set_rx[] = {0x82,
-            (timeout_units >> 16) & 0xFF,
-            (timeout_units >> 8)  & 0xFF,
-            (timeout_units)       & 0xFF
-        };
-        llcc68_cmd(set_rx, sizeof(set_rx));
-
+        //wait 4000ms for a packet
+        llcc68_rx(4000);
 
         if (xSemaphoreTake(lora_irq_sem, portMAX_DELAY) == pdPASS) {
             int endTime = xTaskGetTickCount();
-
+            
             printf("Packet received in %lu ms\n",(int) (endTime - startTime) * portTICK_PERIOD_MS);
+            
+            packetRSSI = llcc68_getRSSI();
 
             //read IRQ status 
             uint8_t irq_status[] = {0x12, 0x00, 0x00, 0x00};
@@ -197,10 +249,6 @@ void llcc68_listen(){
             uint8_t clear_irq[] = {0x02, 0xFF, 0xFF};
             llcc68_cmd(clear_irq, sizeof(clear_irq));
 
-            uint8_t get_rssi[] = {0x15, 0x00};
-            llcc68_cmd(get_rssi, sizeof(get_rssi));
-            packetRSSI = -(get_rssi[1] / 2);
-            printf("RSSI: %d dBm\n", packetRSSI);
 
             if (irq_flags & 0x02) {
                 // Response format: [Status, PayloadLength, RxStartBufferPointer]
@@ -209,17 +257,8 @@ void llcc68_listen(){
                 uint8_t len = get_buf_status[2]; // Length of received packet
                 uint8_t ptr = get_buf_status[3]; // Start address in chip RAM
 
-                // 2. Read the actual payload (Opcode 0x1E)
-                // We need: Opcode + Offset + Dummy Byte + space for data
-                uint8_t read_buffer[len + 3]; 
-                memset(read_buffer, 0, sizeof(read_buffer));
-                read_buffer[0] = 0x1E; 
-                read_buffer[1] = ptr;
-                read_buffer[2] = 0x00; // Mandatory dummy byte
-
-                llcc68_cmd(read_buffer, sizeof(read_buffer));
-
-                memcpy(Data, &read_buffer[3], len);
+                //read data buffer
+                llcc68_buffer_read(ptr, (uint8_t*) Data, len);
 
                 Link_status = LLCC68_LINK_STATUS_CONNECTED;
 
@@ -311,6 +350,19 @@ bool LLCC68_init(void){
 
     //Calibrate Image (Europe)
     llcc68_calibrate_image(LLCC68_FREQUENCY_BAND_863_870);
+
+    //setup params for communication
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    llcc68_setStandby(LLCC68_STANDBY_RC); // Use crystal oscillator for better stability during reception
+
+    llcc68_setPacketType(LLCC68_PACKET_TYPE_LORA);
+
+    llcc68_setFrequency(LORA_RF_FREQUENCY);
+
+    llcc68_setModulationParams(LLCC68_MODULATION_SF_7, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8, true);
+
+    llcc68_setPaConfig(0x04, 0x07); //max recommended power
 
     return true;
 }

@@ -41,7 +41,7 @@ extern LLCC68_Link_Status_t Link_status;
 extern int timeoutCounter;
 extern int errorCounter;
 extern int packetCounter;
-extern int packetRSSI;
+extern float packetRSSI;
 
 typedef enum{
     LLCC68_FREQUENCY_BAND_430_440 = 0,
@@ -133,6 +133,30 @@ void llcc68_setBufferBaseAddress(uint8_t tx_base, uint8_t rx_base);
 
 
 void llcc68_setPacketParams_Lora(uint16_t peramble_length, bool implicit_header, uint8_t payload_length, bool crc_enable, bool invert_iq);
+
+
+void llcc68_rx(int timeout_ms);
+
+
+// Sends a single LoRa packet
+void llcc68_tx(void* data, uint8_t length);
+
+
+//Read bytes from the buffer
+///@param length number of bytes to read from the buffer
+void llcc68_buffer_read(uint8_t offset, uint8_t* buf, uint8_t length);
+
+
+//Write bytes to the buffer
+///@param length number of bytes to write to the buffer
+void llcc68_buffer_write(uint8_t offset, uint8_t* buf, uint8_t length);
+
+
+void llcc68_setPaConfig(uint8_t paDutyCycle, uint8_t paHpMax);
+
+
+float llcc68_getRSSI();
+
 
 bool LLCC68_init(void);
 

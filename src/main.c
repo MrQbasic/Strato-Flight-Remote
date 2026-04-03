@@ -22,7 +22,7 @@ void app_main(void) {
     char stats_buffer[1024];
     while(1) {
         vTaskGetRunTimeStats(stats_buffer);
-        //printf("%s\n", stats_buffer);
+        printf("%s\n", stats_buffer);
         vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
