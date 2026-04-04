@@ -18,30 +18,8 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
-typedef enum {
-    LLCC68_LINK_STATUS_DISCONNECTED = 0,
-    LLCC68_LINK_STATUS_CONNECTED = 1,
-    LLCC68_LINK_STATUS_ERROR = 2,
-} LLCC68_Link_Status_t;
-
-typedef struct LoraData {
-    float temp_1;
-    float temp_2;
-    float pressure;
-    float humidity;
-    float uv;
-    double gps_lat;
-    double gps_lon;
-    double gps_alt;
-} __attribute__((packed)) LoraData;
-
-extern LoraData* Data;
-extern LLCC68_Link_Status_t Link_status;
-extern int timeoutCounter;
-extern int errorCounter;
-extern int packetCounter;
-extern float packetRSSI;
 
 typedef enum{
     LLCC68_FREQUENCY_BAND_430_440 = 0,
@@ -158,6 +136,7 @@ void llcc68_setPaConfig(uint8_t paDutyCycle, uint8_t paHpMax);
 float llcc68_getRSSI();
 
 
-bool LLCC68_init(void);
+void llcc68_cmd(uint8_t *buf, size_t len);
 
-void llcc68_listen();
+
+bool LLCC68_init(void);

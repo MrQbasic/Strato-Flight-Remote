@@ -1,12 +1,12 @@
 #include "menu.h"
 #include "display.h"
-#include "LLCC68.h"
+#include "LoRa.h"
 #include "rotaryEnc.h"
 
 #include "menu/SensorData.h"
 #include "menu/GPSData.h"
 #include "menu/Selector.h"
-#include "menu/LoRa.h"
+#include "menu/LoRa_Menu.h"
 
 int global_enc_pos = 0;
 int last_local_enc_pos = 0;
@@ -70,12 +70,12 @@ void render_menu() {
 
         // Render link status in top right
         const char* status_String = "UNKNOWN";
-        switch (Link_status){
-            case LLCC68_LINK_STATUS_DISCONNECTED:
+        switch (Lora_Status.linkStatus){
+            case LoRa_LINK_STATUS_DISCONNECTED:
                 status_String = "NO LINK"; break;
-            case LLCC68_LINK_STATUS_CONNECTED:
+            case LoRa_LINK_STATUS_CONNECTED:
                 status_String = "OK LINK"; break;
-            case LLCC68_LINK_STATUS_ERROR:
+            case LoRa_LINK_STATUS_ERROR:
                 status_String = "ERROR"; break;
             default:
                 break;

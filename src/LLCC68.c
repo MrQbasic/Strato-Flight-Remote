@@ -3,9 +3,6 @@
 #include "driver/spi_master.h"
 #include "driver/gpio.h"
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/semphr.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -13,23 +10,13 @@
 
 static spi_device_handle_t lora_spi;
 
-static SemaphoreHandle_t lora_irq_sem = NULL;
-
-int timeoutCounter = 0;
-int errorCounter = 0;
-int packetCounter = 0;
-float packetRSSI = 0;
-
-LoraData* Data = NULL;
-LLCC68_Link_Status_t Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
-
 static void llcc68_wait_busy(void){
     while(gpio_get_level(PIN_LORA_BUSY) == 1){
         vTaskDelay(1);
     }
 }
 
-static void llcc68_cmd(uint8_t *buf, size_t len) {
+void llcc68_cmd(uint8_t *buf, size_t len) {
     uint8_t tx_buf[len];
     memcpy(tx_buf, buf, len);
 
@@ -43,12 +30,6 @@ static void llcc68_cmd(uint8_t *buf, size_t len) {
     gpio_set_level(PIN_LORA_NSS, 0);
     spi_device_transmit(lora_spi, &t);
     gpio_set_level(PIN_LORA_NSS, 1);
-}
-
-static void IRAM_ATTR lora_dio1_isr(void *arg) {
-    BaseType_t higher_priority_woken = pdFALSE;
-    xSemaphoreGiveFromISR(lora_irq_sem, &higher_priority_woken);
-    portYIELD_FROM_ISR(higher_priority_woken);
 }
 
 
@@ -193,99 +174,6 @@ void llcc68_setPaConfig(uint8_t paDutyCycle, uint8_t paHpMax){
     llcc68_cmd(cmd, sizeof(cmd));
 }
 
-void llcc68_listen(){
-    lora_irq_sem = xSemaphoreCreateBinary();
-    
-    //setup interrupt for reciving data
-    gpio_config_t dio1_conf = {
-        .pin_bit_mask = (1ULL << PIN_LORA_DIO1),
-        .mode         = GPIO_MODE_INPUT,
-        .pull_up_en   = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_ENABLE,
-        .intr_type    = GPIO_INTR_POSEDGE,  // DIO1 goes high when IRQ fires
-    };
-    gpio_config(&dio1_conf);
-    gpio_install_isr_service(ESP_INTR_FLAG_IRAM);
-    gpio_isr_handler_add(PIN_LORA_DIO1, lora_dio1_isr, NULL);
-
-
-    
-
-    // 7. SetDioIrqParams - RxDone + Timeout + CRC error on DIO1
-    uint8_t irq[] = {0x08,
-        0x02, 0x63,  // IrqMask: RxDone(bit1) | Timeout(bit8) | CrcErr(bit6)
-        0x03, 0xFF,  // DIO1 mask
-        0x00, 0x00,  // DIO2 mask
-        0x00, 0x00   // DIO3 mask
-    };
-    llcc68_cmd(irq, sizeof(irq));
-
-    // 8. Set LoRa sync word - must match TX
-    uint8_t sync[] = {0x0D, 0x07, 0x40, 0x14, 0x24};
-    llcc68_cmd(sync, sizeof(sync));
-    
-    llcc68_setPacketParams_Lora(8, false, 255, true, false);  //255 is the max payload length as its only reciving here
-
-    //check if threr was a packet recived
-    while(1){
-        int startTime = xTaskGetTickCount();
-
-        //wait 4000ms for a packet
-        llcc68_rx(4000);
-
-        if (xSemaphoreTake(lora_irq_sem, portMAX_DELAY) == pdPASS) {
-            int endTime = xTaskGetTickCount();
-            
-            printf("Packet received in %lu ms\n",(int) (endTime - startTime) * portTICK_PERIOD_MS);
-            
-            packetRSSI = llcc68_getRSSI();
-
-            //read IRQ status 
-            uint8_t irq_status[] = {0x12, 0x00, 0x00, 0x00};
-            llcc68_cmd(irq_status, sizeof(irq_status));
-            uint16_t irq_flags = (irq_status[2] << 8) | irq_status[3];
-
-            // clear IRQ
-            uint8_t clear_irq[] = {0x02, 0xFF, 0xFF};
-            llcc68_cmd(clear_irq, sizeof(clear_irq));
-
-
-            if (irq_flags & 0x02) {
-                // Response format: [Status, PayloadLength, RxStartBufferPointer]
-                uint8_t get_buf_status[] = {0x13, 0x00, 0x00, 0x00};
-                llcc68_cmd(get_buf_status, sizeof(get_buf_status));
-                uint8_t len = get_buf_status[2]; // Length of received packet
-                uint8_t ptr = get_buf_status[3]; // Start address in chip RAM
-
-                //read data buffer
-                llcc68_buffer_read(ptr, (uint8_t*) Data, len);
-
-                Link_status = LLCC68_LINK_STATUS_CONNECTED;
-
-                packetCounter++;
-
-            }else if(irq_flags & 0x20){
-                printf("LoRa Header Error!\n");
-                Link_status = LLCC68_LINK_STATUS_ERROR;
-                errorCounter++;
-            }else if (irq_flags & 0x40) {
-                printf("LoRa CRC Error!\n");
-                Link_status = LLCC68_LINK_STATUS_ERROR;
-                errorCounter++;
-            } else if (irq_flags & 0x200) {
-                printf("LoRa Timeout!\n");
-                Link_status = LLCC68_LINK_STATUS_DISCONNECTED;
-                timeoutCounter++;
-            } else {
-                printf("unexprected interrupt! 0x%02x\n", irq_flags);
-                Link_status = LLCC68_LINK_STATUS_ERROR;
-                errorCounter++; 
-            }
-            
-        }
-    }
-}
-
 static void llcc68_reset(void){
     gpio_set_level(PIN_LORA_RST, 0);
     vTaskDelay(pdMS_TO_TICKS(1));
@@ -296,10 +184,6 @@ static void llcc68_reset(void){
 
 
 bool LLCC68_init(void){
-
-    Data = (struct LoraData*) malloc(256 * sizeof(uint8_t)); //alloc max buffer length to avoid segfaults if struct is wrong
-    memset(Data, 0, 256 * sizeof(uint8_t));
-
     gpio_set_direction(PIN_LORA_NSS, GPIO_MODE_OUTPUT);
     gpio_set_level(PIN_LORA_NSS, 1);
 

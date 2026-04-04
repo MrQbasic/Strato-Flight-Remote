@@ -6,16 +6,15 @@
 #include "rotaryEnc.h"
 #include "display.h"
 #include "menu.h"
-#include "LLCC68.h"
+#include "LoRa.h"
 
 void app_main(void) {
     rotary_encoder_init();
 
     display_init();
 
-    LLCC68_init();
+    LoRa_setup();
 
-    xTaskCreate(llcc68_listen, "LORA_RX", 2048, NULL, 20, NULL);
 
     xTaskCreate(render_menu, "menu_Task", 2048, NULL, 2, NULL);
 
