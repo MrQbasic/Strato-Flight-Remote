@@ -1,5 +1,17 @@
 #pragma once
 
+#include <stdint.h>
+
+typedef struct LoraResponse {
+    int packet_id;
+    uint8_t command;
+    uint8_t arg;
+    //redundant for data transmission
+    uint8_t command_repeat;
+    uint8_t arg_repeat;
+} __attribute__((packed)) LoraResponse;
+
+
 typedef struct LoraData {
     float temp_1;
     float temp_2;
@@ -9,6 +21,7 @@ typedef struct LoraData {
     double gps_lat;
     double gps_lon;
     double gps_alt;
+    int packet_id;
 } __attribute__((packed)) LoraData;
 
 

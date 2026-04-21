@@ -75,7 +75,6 @@ void lora_task(){
             uint8_t clear_irq[] = {0x02, 0xFF, 0xFF};
             llcc68_cmd(clear_irq, sizeof(clear_irq));
 
-
             if (irq_flags & 0x02) {
                 // Response format: [Status, PayloadLength, RxStartBufferPointer]
                 uint8_t get_buf_status[] = {0x13, 0x00, 0x00, 0x00};
@@ -83,12 +82,22 @@ void lora_task(){
                 uint8_t len = get_buf_status[2]; // Length of received packet
                 uint8_t ptr = get_buf_status[3]; // Start address in chip RAM
 
-                //read data buffer
                 llcc68_buffer_read(ptr, (uint8_t*) Lora_Data, len);
 
                 Lora_Status.linkStatus = LoRa_LINK_STATUS_CONNECTED;
-
                 Lora_Status.packetCount++;
+                
+                vTaskDelay(pdMS_TO_TICKS(1000)); //delay to ensure the response is sent after the packet is fully processed, may not be necessary
+
+                //send response
+                LoraResponse response = {
+                    .packet_id = Lora_Data->packet_id,
+                    .command = 0x00, // ACK command
+                    .arg = 0x00, // No error
+                    .command_repeat = 0x00,
+                    .arg_repeat = 0x00
+                };
+                llcc68_tx((uint8_t*) &response, sizeof(response));
 
             }else if(irq_flags & 0x20){
                 printf("LoRa Header Error!\n");
