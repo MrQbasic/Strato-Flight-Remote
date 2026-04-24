@@ -246,7 +246,7 @@ bool LLCC68_init(void){
 
     llcc68_setModulationParams(LLCC68_MODULATION_SF_7, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8, true);
 
-    llcc68_setPaConfig(0x01, 0x01); //max recommended power
+    llcc68_setPaConfig(0x04, 0x07); //max recommended power
 
     //set ocp
     uint8_t ocp_set[] = {0x0D, 0x08, 0xE7, 0x38}; //140mA
