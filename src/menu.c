@@ -77,6 +77,8 @@ void render_menu() {
                 status_String = "OK LINK"; break;
             case LoRa_LINK_STATUS_ERROR:
                 status_String = "ERROR"; break;
+            case LoRa_LINK_STATUS_RX_ONLY:
+                status_String = "RX ONLY"; break;
             default:
                 break;
         }

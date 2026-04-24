@@ -150,7 +150,7 @@ void llcc68_buffer_read(uint8_t offset, uint8_t* buf, uint8_t length){
 
 void llcc68_buffer_write(uint8_t offset, uint8_t* buf, uint8_t length){
     //alloc a buffer for the write
-    uint8_t writeBuffer[length + 3];
+    uint8_t writeBuffer[length + 2];
     memset(writeBuffer, 0, sizeof(writeBuffer));
     //set the header
     writeBuffer[0] = 0x0E; 
@@ -246,7 +246,11 @@ bool LLCC68_init(void){
 
     llcc68_setModulationParams(LLCC68_MODULATION_SF_7, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8, true);
 
-    llcc68_setPaConfig(0x04, 0x07); //max recommended power
+    llcc68_setPaConfig(0x01, 0x01); //max recommended power
+
+    //set ocp
+    uint8_t ocp_set[] = {0x0D, 0x08, 0xE7, 0x38}; //140mA
+    llcc68_cmd(ocp_set, sizeof(ocp_set));
 
     return true;
 }

@@ -22,6 +22,7 @@ typedef struct LoraData {
     double gps_lon;
     double gps_alt;
     int packet_id;
+    int lastPacketStatus;
 } __attribute__((packed)) LoraData;
 
 
@@ -29,6 +30,7 @@ typedef enum {
     LoRa_LINK_STATUS_DISCONNECTED = 0,
     LoRa_LINK_STATUS_CONNECTED = 1,
     LoRa_LINK_STATUS_ERROR = 2,
+    LoRa_LINK_STATUS_RX_ONLY = 3,
 } LoRa_Link_Status_t;
 
 typedef struct LoraStatus {

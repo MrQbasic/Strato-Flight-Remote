@@ -84,10 +84,16 @@ void lora_task(){
 
                 llcc68_buffer_read(ptr, (uint8_t*) Lora_Data, len);
 
-                Lora_Status.linkStatus = LoRa_LINK_STATUS_CONNECTED;
+
+                if(Lora_Data->lastPacketStatus == 0x00){
+                    Lora_Status.linkStatus = LoRa_LINK_STATUS_CONNECTED;
+                }else{
+                    Lora_Status.linkStatus = LoRa_LINK_STATUS_RX_ONLY;
+                }
+
                 Lora_Status.packetCount++;
                 
-                vTaskDelay(pdMS_TO_TICKS(1000)); //delay to ensure the response is sent after the packet is fully processed, may not be necessary
+                vTaskDelay(pdMS_TO_TICKS(2000)); //delay to ensure the response is sent after the packet is fully processed, may not be necessary
 
                 //send response
                 LoraResponse response = {
@@ -97,7 +103,9 @@ void lora_task(){
                     .command_repeat = 0x00,
                     .arg_repeat = 0x00
                 };
-                llcc68_tx((uint8_t*) &response, sizeof(response));
+
+                llcc68_tx(&response, 8);
+                vTaskDelay(pdMS_TO_TICKS(500)); //Let the tx tx  TODO Poll the status to make shure its ok to rx again
 
             }else if(irq_flags & 0x20){
                 printf("LoRa Header Error!\n");
@@ -111,6 +119,9 @@ void lora_task(){
                 printf("LoRa Timeout!\n");
                 Lora_Status.linkStatus = LoRa_LINK_STATUS_DISCONNECTED;
                 Lora_Status.timeoutCount++;
+            }else if (irq_flags & 0x01){
+                //TX done interrupt
+                //response packet is send DONE ---> TODO add this to the TODO above and remove delay for performance and reliability!
             } else {
                 printf("unexprected interrupt! 0x%02x\n", irq_flags);
                 Lora_Status.linkStatus = LoRa_LINK_STATUS_ERROR;
