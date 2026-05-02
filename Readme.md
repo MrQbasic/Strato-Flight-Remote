@@ -10,7 +10,7 @@ This project is designed as a portable ground station for receiving telemetry, d
 
 ## Hardware (Without Case)
 
-![Hardware Image](https://github.com/MrQbasic/Strato-Flight-Remote/blob/main/pictures/Hardware.jpg)
+![Hardware Image](https://github.com/MrQbasic/Strato-Flight-Remote/blob/main/pictures/Hardware_2.jpg)
 
 ### 📟 LCD Font
 https://fonts2u.com/code-7x5-regular.font
@@ -22,7 +22,7 @@ https://fonts2u.com/code-7x5-regular.font
 | Feature | Status |
 |----------|--------|
 | 📡 LoRa RX | ✅ Working |
-| 📡 LoRa TX | ❌ Not Working |
+| 📡 LoRa TX | ✅ Working |
 | 💾 Data Saving | ❌ Not Working |
 |  Display | ✅ Working |
 |  User Input | ✅ Working |
