@@ -244,7 +244,7 @@ bool LLCC68_init(void){
 
     llcc68_setFrequency(LORA_RF_FREQUENCY);
 
-    llcc68_setModulationParams(LLCC68_MODULATION_SF_7, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8, true);
+    llcc68_setModulationParams(LLCC68_MODULATION_SF_9, LLCC68_MODULATION_BW_125_KHZ, LLCC68_MODULATION_CR_4_8_LI, true);
 
     llcc68_setPaConfig(0x04, 0x07); //max recommended power
 

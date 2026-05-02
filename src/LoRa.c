@@ -63,8 +63,6 @@ void lora_task(){
             int endTime = xTaskGetTickCount();
             
             printf("Packet received in %lu ms\n",(int) (endTime - startTime) * portTICK_PERIOD_MS);
-            
-            Lora_Status.RSSI = llcc68_getRSSI();
 
             //read IRQ status 
             uint8_t irq_status[] = {0x12, 0x00, 0x00, 0x00};
@@ -76,6 +74,12 @@ void lora_task(){
             llcc68_cmd(clear_irq, sizeof(clear_irq));
 
             if (irq_flags & 0x02) {
+                //get packet status
+                uint8_t packet_status[] = {0x14, 0x00, 0x00, 0x00, 0x00};
+                llcc68_cmd(packet_status, sizeof(packet_status));
+
+                Lora_Status.SNR = packet_status[3]/4.0f;
+
                 // Response format: [Status, PayloadLength, RxStartBufferPointer]
                 uint8_t get_buf_status[] = {0x13, 0x00, 0x00, 0x00};
                 llcc68_cmd(get_buf_status, sizeof(get_buf_status));

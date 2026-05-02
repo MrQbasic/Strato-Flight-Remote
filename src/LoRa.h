@@ -34,7 +34,7 @@ typedef enum {
 } LoRa_Link_Status_t;
 
 typedef struct LoraStatus {
-    float RSSI;
+    float SNR;
     int packetCount;
     int errorCount;
     int timeoutCount;
