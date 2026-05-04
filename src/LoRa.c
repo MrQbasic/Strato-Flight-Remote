@@ -13,13 +13,14 @@ static SemaphoreHandle_t lora_irq_sem = NULL;
 LoraStatus Lora_Status;
 LoraData* Lora_Data = NULL;
 
+QueueHandle_t command_evt_queue;
+
 //Interupt function for the int pin
 static void IRAM_ATTR lora_dio1_isr(void *arg) {
     BaseType_t higher_priority_woken = pdFALSE;
     xSemaphoreGiveFromISR(lora_irq_sem, &higher_priority_woken);
     portYIELD_FROM_ISR(higher_priority_woken);
 }
-
 
 void lora_task(){
     lora_irq_sem = xSemaphoreCreateBinary();
@@ -51,6 +52,8 @@ void lora_task(){
     llcc68_cmd(sync, sizeof(sync));
     
     llcc68_setPacketParams_Lora(8, false, 255, true, false);  //255 is the max payload length as its only reciving here
+
+    bool pushedCommand = false;
 
     //check if threr was a packet recived
     while(1){
@@ -88,10 +91,38 @@ void lora_task(){
 
                 llcc68_buffer_read(ptr, (uint8_t*) Lora_Data, len);
 
+                int currentCommand = 0x00;
+                int currentCommandArg = 0x00;
 
-                if(Lora_Data->lastPacketStatus == 0x00){
+                //command confirmed (also gets send for the 0x00 NOP command)
+                if(Lora_Data->lastPacketStatus == 0x00){    
+                    //check if we ran a real command last time kick it from the list
+                    if(pushedCommand){
+                        Lora_Command dummy;
+                        xQueueReceive(command_evt_queue, &dummy, 0);
+                    }
+                    Lora_Command cmd;
+                    if(xQueuePeek(command_evt_queue, &cmd, 0) == pdTRUE) {
+                        pushedCommand = true;
+                        currentCommand = cmd.cmd;
+                        currentCommandArg = cmd.arg;
+                        printf("Sending command: %8x : %8x\n" ,currentCommand, currentCommandArg);
+                    }else{
+                        pushedCommand = false;
+                    }
                     Lora_Status.linkStatus = LoRa_LINK_STATUS_CONNECTED;
                 }else{
+                    //if the TX didn't have any success then resend the command
+                    Lora_Command cmd;
+                    if(xQueuePeek(command_evt_queue, &cmd, 0) == pdTRUE) {
+                        pushedCommand = true;
+                        currentCommand = cmd.cmd;
+                        currentCommandArg = cmd.arg;
+                    }else{
+                        pushedCommand = false;
+                        //TODO add error message
+                        //This is unexpected as we can't resend the command that just failed ?
+                    }
                     Lora_Status.linkStatus = LoRa_LINK_STATUS_RX_ONLY;
                 }
 
@@ -102,12 +133,11 @@ void lora_task(){
                 //send response
                 LoraResponse response = {
                     .packet_id = Lora_Data->packet_id,
-                    .command = 0x00, // ACK command
-                    .arg = 0x00, // No error
-                    .command_repeat = 0x00,
-                    .arg_repeat = 0x00
+                    .command = currentCommand, // ACK command
+                    .arg = currentCommandArg, // No error
+                    .command_repeat = currentCommand,
+                    .arg_repeat = currentCommandArg,
                 };
-
                 llcc68_tx(&response, 8);
                 vTaskDelay(pdMS_TO_TICKS(500)); //Let the tx tx  TODO Poll the status to make shure its ok to rx again
 
@@ -138,6 +168,8 @@ void lora_task(){
 
 
 void LoRa_setup(){
+    command_evt_queue = xQueueCreate(10, sizeof(Lora_Command));
+
     Lora_Data = (struct LoraData*) malloc(256 * sizeof(uint8_t)); //alloc max buffer length to avoid segfaults if struct is wrong
     memset(Lora_Data, 0, 256 * sizeof(uint8_t));
 

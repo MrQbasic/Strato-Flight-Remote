@@ -7,6 +7,7 @@
 #include "menu/GPSData.h"
 #include "menu/Selector.h"
 #include "menu/LoRa_Menu.h"
+#include "menu/Control.h"
 
 int global_enc_pos = 0;
 int last_local_enc_pos = 0;
@@ -39,21 +40,14 @@ void render_menu() {
             }
         }
 
-        //handle menu state switching
-        if(render_selector && buttonPressed){
-            render_selector = false;
-        }else if(!render_selector && buttonPressed){
-            render_selector = true;
-            global_enc_pos = menu_selected; //reset to start at 0 in the list
-        }
-
-        //render window
-
         display_draw_clear();
-
+        //render Window
         if(render_selector){
+            if(buttonPressed) render_selector = false;
+
             menu_selected = render_menu_selector(global_enc_pos);
         }else{
+            bool switchOK = true;
             switch (menu_selected){
                 case 0:
                     render_SensorData_menu(); break;
@@ -62,10 +56,17 @@ void render_menu() {
                 case 2:
                     render_LoRa_menu(); break;
                 case 3:
-                    //render_Options_menu(); break;
+                    switchOK = render_Control(global_enc_pos, buttonPressed); break;
                 default:
                     break;
             }
+            
+            //switch back to selector if needed
+            if(buttonPressed && switchOK){
+                render_selector = true;
+                global_enc_pos = menu_selected;
+            }
+
         }
 
         // Render link status in top right

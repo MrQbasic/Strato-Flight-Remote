@@ -1,4 +1,6 @@
 #pragma once
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
 
 #include <stdint.h>
 
@@ -43,5 +45,12 @@ typedef struct LoraStatus {
 
 extern LoraStatus Lora_Status;
 extern LoraData*  Lora_Data;
+
+typedef struct Lora_Command{
+    uint8_t cmd;
+    uint8_t arg;
+} Lora_Command;
+
+extern QueueHandle_t command_evt_queue;
 
 void LoRa_setup();

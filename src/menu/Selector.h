@@ -15,7 +15,7 @@ int render_menu_selector(int pos){
     display_draw_string("Sensors",      MARGIN_X,  spacing * 0 + 1, pos != 0);
     display_draw_string("GPS",      MARGIN_X,  spacing * 1 + 1, pos != 1);
     display_draw_string("LoRa",      MARGIN_X,  spacing * 2 + 1, pos != 2);
-    display_draw_string("Options",      MARGIN_X,  spacing * 3 + 1, pos != 3);
+    display_draw_string("Control",      MARGIN_X,  spacing * 3 + 1, pos != 3);
 
     return pos;
 }
